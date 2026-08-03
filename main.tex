@@ -1,0 +1,273 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[UTF8]{ctex} % 中文支持
+\usepackage{geometry}
+\geometry{margin=1.25in}
+% 数学公式全套
+\usepackage{amsmath,amssymb,amsfonts,bm}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator{\sign}{sign}
+% 三线表、列表、图表
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{caption,subcaption}
+% 超链接必须放在所有宏包最后
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\title{机器学习入门知识点完整汇总报告\\理论与数学双层体系}
+\author{学习整理}
+\date{\today}
+\begin{document}
+\maketitle
+\begin{abstract}
+本文完整系统整理机器学习入门全部核心知识，整体分为两大模块：第一部分为机器学习、深度学习、强化学习共用底层通用原理，包含三大分支定义、完整训练流程、前向/反向传播、收敛判定、评价指标、正则化与基础数学工具；第二部分由浅入深依次解析全部基础模型，从线性回归族、概率模型、树集成、无监督降维、基础神经网络到入门强化学习算法，全部配套严谨数学公式与理论解释，结构层次清晰。
+\end{abstract}
+
+\section{第一部分 机器学习通用底层基础原理}
+\subsection{1.1 三大分支核心定义与底层逻辑}
+给定数据集 $D=\{(x_i,y_i)\}_{i=1}^N$，机器学习统一目标为学习映射 $f:\mathcal{X}\to\mathcal{Y}$，最小化全局预测误差，按照学习范式分为三类。
+
+\subsubsection{1.1.1 传统机器学习（Machine Learning, ML）}
+\textbf{理论定义}：无需人工固化业务判别规则，模型从标注或无标注数据中自动学习输入输出内在规律，最终可泛化至从未见过的全新样本。
+\begin{table}[htbp]
+\centering
+\caption{机器学习三大学习范式对比}
+\label{tab:paradigm}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+范式 & 数据形式 & 优化目标 & 典型任务 \\
+\midrule
+监督学习 & 输入$x$ + 真实标签$y$ & $\displaystyle \argmin_f \mathcal{L}(f(x_i),y_i)$ & 回归、分类 \\
+无监督学习 & 仅输入$x$，无标签 & 挖掘数据分布、聚类结构 & 聚类、降维 \\
+半监督学习 & 少量标注 + 大量无标注 & 同时拟合标签与数据分布 & 半监督分类 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{1.1.2 深度学习（Deep Learning, DL）}
+\textbf{理论定义}：机器学习子集，依靠多层嵌套非线性变换自动分层提取特征，免去人工特征工程。
+\textbf{数学复合映射}:
+\[
+\hat{y}=f_{\text{out}}\big(W_L \cdot f_{L-1}\big(W_{L-1}\cdots f_1(W_1 x+b_1)\cdots +b_{L-1}\big)+b_L\big)
+\]
+式中 $f_k$ 为第$k$层激活函数，$W,b$ 为网络待优化权重、偏置参数。
+
+\subsubsection{1.1.3 强化学习（Reinforcement Learning, RL）}
+\textbf{理论定义}：无固定静态数据集，智能体（Agent）与环境持续交互，依靠奖励信号试错学习最优动作策略。
+数学核心五元组：$(\mathcal{S},\mathcal{A},P,R,\gamma)$
+\begin{itemize}[leftmargin=*]
+\item $\mathcal{S}$：状态空间；$\mathcal{A}$：动作空间；
+\item $P(s'|s,a)$：状态转移概率；$R_t$：$t$时刻即时奖励；
+\item $\gamma\in[0,1]$：折扣因子，平衡短期与长期回报；
+\end{itemize}
+优化目标：最大化长期累积回报
+\[
+G_t=\sum_{k=0}^{\infty}\gamma^k R_{t+k}
+\]
+
+\subsection{1.2 模型完整训练全流程（理论+数学）}
+\subsubsection{1.2.1 数据集划分（数学约束）}
+数据集严格划分三类，样本无交集、满足独立同分布，严格杜绝数据泄漏：
+\begin{enumerate}
+\item 训练集 $D_{\text{train}}$：用于更新模型参数 $W,b$；
+\item 验证集 $D_{\text{val}}$：超参调优、早停、模型筛选；
+\item 测试集 $D_{\text{test}}$：仅训练结束后单次使用，评估真实泛化能力。
+\end{enumerate}
+
+\subsubsection{1.2.2 损失函数 Loss Function}
+\textbf{理论}：量化单个样本预测值与真实标签的偏差，是反向传播的优化目标。通用形式 $\mathcal{L}(\hat{y},y)$。
+\begin{align*}
+\text{回归MSE损失：}&\quad \mathcal{L}=\frac{1}{N}\sum_{i=1}^N (\hat{y}_i-y_i)^2 \\
+\text{二元交叉熵损失：}&\quad \mathcal{L}=-\frac{1}{N}\sum_{i=1}^N \big[y_i\log\hat{y}_i + (1-y_i)\log(1-\hat{y}_i)\big]
+\end{align*}
+
+\subsubsection{1.2.3 代价函数 Cost Function}
+代价函数为全数据集损失均值，训练核心极小化目标：
+\[
+J(W,b)=\frac{1}{N}\sum_{i=1}^N \mathcal{L}\big(f(x_i;W,b),y_i\big),\quad \argmin_{W,b} J(W,b)
+\]
+
+\subsubsection{1.2.4 前向传播 Forward Propagation}
+数据从输入层流向输出层，仅计算预测与损失，不更新参数。单层网络计算流程：
+\[
+z=Wx+b,\quad a=\sigma(z)
+\]
+多层嵌套迭代得到最终预测 $\hat{y}$，再计算全局代价 $J$。
+
+\subsubsection{1.2.5 反向传播 Back Propagation}
+基于微分链式法则反向求导，求解代价对参数梯度，用于参数更新：
+\[
+\frac{\partial J}{\partial W} = \frac{\partial J}{\partial \hat{y}} \cdot \frac{\partial \hat{y}}{\partial z} \cdot \frac{\partial z}{\partial W}
+\]
+
+\subsubsection{1.2.6 梯度下降优化器通用公式}
+\[
+W \leftarrow W - \alpha \nabla_W J
+\]
+$\alpha$ 为学习率；主流变体：批量梯度下降BGD、随机梯度下降SGD、Mini-Batch SGD、自适应Adam优化器。
+
+\subsubsection{1.2.7 收敛 Convergence 定义与判定}
+\textbf{定义}：迭代后验证误差、参数梯度不再显著波动，训练达到稳定。判定条件二选一：
+\begin{enumerate}
+\item 连续多轮epoch满足 $|J_{\text{val},t+1}-J_{\text{val},t}|<\varepsilon$（$\varepsilon$ 极小阈值）；
+\item 参数梯度范数 $\|\nabla J\|\approx 0$，抵达局部极小区域。
+\end{enumerate}
+三类收敛结果：理想恰当拟合、过拟合、欠拟合。
+
+\subsubsection{1.2.8 三大拟合状态}
+\begin{itemize}
+\item 欠拟合：模型容量小于数据复杂度，训练、测试误差均偏高；
+\item 恰当拟合：训练、测试误差均低，差距很小；
+\item 过拟合：模型容量过大，记忆训练噪声，训练误差持续下降、测试误差上升；
+\end{itemize}
+过拟合抑制手段：L1/L2正则、Dropout、早停、数据增强。
+
+\subsection{1.3 模型基础衡量指标}
+\subsubsection{1.3.1 回归评价指标}
+\begin{table}[htbp]
+\centering
+\caption{回归任务评价指标汇总}
+\label{tab:reg-metric}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+指标 & 数学公式 & 作用说明 \\
+\midrule
+MSE均方误差 & $\displaystyle \frac{1}{N}\sum_{i=1}^N (\hat{y}_i-y_i)^2$ & 对大误差惩罚更强 \\
+MAE平均绝对误差 & $\displaystyle \frac{1}{N}\sum_{i=1}^N |\hat{y}_i-y_i|$ & 抗异常离群值 \\
+$R^2$决定系数 & $\displaystyle 1-\frac{\sum(\hat{y}-y)^2}{\sum(\bar{y}-y)^2}$ & $(-\infty,1]$，越接近1拟合越好 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{1.3.2 分类基础指标}
+混淆矩阵基础：$TP$真阳、$FP$假阳、$TN$真阴、$FN$假阴。
+\begin{align*}
+\text{Accuracy} &= \frac{TP+TN}{TP+TN+FP+FN},\quad \text{Precision}=\frac{TP}{TP+FP}\\
+\text{Recall} &= \frac{TP}{TP+FN},\quad F1=\frac{2\cdot \text{Precision}\cdot \text{Recall}}{\text{Precision}+\text{Recall}}
+\end{align*}
+多分类均衡指标：Macro-F1、Micro-F1。
+
+\subsubsection{1.3.3 泛化误差}
+分为训练误差、验证误差、测试误差；泛化误差等价于测试集误差，衡量模型在未知样本的预测能力。
+
+\subsection{1.4 正则化、激活函数与底层数学工具}
+\subsubsection{1.4.1 正则化项}
+\begin{itemize}
+\item L2正则（权重衰减）：$J_{\text{reg}}=J+\frac{\lambda}{2}\|W\|_2^2$，平滑约束所有权重；
+\item L1正则：$J_{\text{reg}}=J+\lambda\|W\|_1$，产生稀疏权重，自动筛选特征；
+\end{itemize}
+
+\subsubsection{1.4.2 基础激活函数}
+无激活时多层网络等价纯线性模型，无法拟合非线性分布：
+\[
+\sigma(z)=\frac{1}{1+e^{-z}},\quad \text{ReLU}(z)=\max(0,z)
+\]
+Sigmoid易梯度消失，ReLU为工业主流激活。
+
+\subsubsection{1.4.3 底层数学基础}
+矩阵运算、偏导数与梯度、概率分布、期望、方差、极大似然估计(MLE)。
+
+\section{第二部分 经典基础模型理论与数学解析}
+\subsection{2.1 线性模型家族}
+\subsubsection{2.1.1 多元线性回归}
+模型：$\hat{y}=\boldsymbol{W}^T \boldsymbol{X}+b$，损失MSE。代价：
+\[
+J(W,b)=\frac{1}{2N}\sum_{i=1}^N (\boldsymbol{W}^T \boldsymbol{x}_i+b-y_i)^2
+\]
+两种求解：
+\begin{enumerate}
+\item 闭式正规方程：$\boldsymbol{W}=(\boldsymbol{X}^T\boldsymbol{X})^{-1}\boldsymbol{X}^T \boldsymbol{y}$（小数据集）；
+\item 梯度下降迭代（大规模数据）。
+\end{enumerate}
+仅拟合线性关系，可拓展岭回归、Lasso。
+
+\subsubsection{2.1.2 岭回归 Ridge（L2正则线性回归）}
+\[
+J=\frac{1}{2N}\sum (\hat{y}-y)^2 + \frac{\lambda}{2}\|\boldsymbol{W}\|_2^2
+\]
+缓解特征多重共线性，限制权重幅值爆炸。
+
+\subsubsection{2.1.3 Lasso回归（L1正则线性回归）}
+\[
+J=\frac{1}{2N}\sum (\hat{y}-y)^2 + \lambda\|\boldsymbol{W}\|_1
+\]
+L1在原点次梯度不连续，可将冗余特征权重置0，实现自动特征筛选。
+
+\subsubsection{2.1.4 多项式回归}
+对原始特征构造高次项，参数仍为线性，单变量二次形式：
+\[
+\hat{y}=w_0 + w_1 x + w_2 x^2
+\]
+阶数过高极易过拟合，必须搭配正则约束。
+
+\subsubsection{2.1.5 逻辑回归（二分类广义线性模型）}
+\[
+z=\boldsymbol{W}^T \boldsymbol{x}+b,\quad \hat{y}=\sigma(z)=\frac{1}{1+e^{-z}}
+\]
+损失二元交叉熵，无解析闭式解；多分类拓展Softmax回归。
+
+\subsection{2.2 非参数与概率生成模型}
+\subsubsection{2.2.1 K近邻 KNN}
+惰性无训练模型，预测取距离最近$k$个样本投票/均值。欧氏距离：
+\[
+d(\boldsymbol{x}_1,\boldsymbol{x}_2)=\sqrt{\sum_{j=1}^D (x_{1j}-x_{2j})^2}
+\]
+超参$k$：过小过拟合、过大欠拟合，预测速度慢。
+
+\subsubsection{2.2.2 朴素贝叶斯 Naive Bayes}
+贝叶斯公式+特征条件独立假设：
+\[
+P(Y|X)=\frac{P(X|Y)P(Y)}{P(X)},\quad P(X_1,X_2|Y)=P(X_1|Y)P(X_2|Y)
+\]
+高斯朴素贝叶斯适配连续特征；多项式朴素贝叶斯用于文本分类，训练速度快。
+
+\subsection{2.3 树模型与集成学习}
+\subsubsection{2.3.1 决策树 Decision Tree}
+递归划分特征空间，分类分裂准则信息熵：
+\[
+H=-\sum_c p_c \log p_c
+\]
+通过限制树深、叶子最小样本抑制过拟合，可解释性极强。
+
+\subsubsection{2.3.2 随机森林 Random Forest}
+并行训练多棵独立决策树，样本、特征随机采样，投票输出，降低单树方差。
+
+\subsubsection{2.3.3 GBDT/XGBoost/LightGBM 梯度提升树}
+串行训练，每一棵树拟合前一轮残差；目标内置L2正则，结构化表格数据最优基础模型。
+
+\subsection{2.4 无监督降维：PCA主成分分析}
+线性无监督降维，求解协方差矩阵 $\boldsymbol{X}^T\boldsymbol{X}$ 的特征值、特征向量，选取前$k$个最大特征向量作为投影基，保留数据最大方差，去除特征冗余、可视化高维数据。
+
+\subsection{2.5 基础神经网络模型}
+\subsubsection{2.5.1 单层感知机}
+\[
+\hat{y}=\sign(\boldsymbol{W}\boldsymbol{x}+b)
+\]
+仅处理线性可分样本，无法解决异或非线性问题。
+
+\subsubsection{2.5.2 MLP多层全连接网络}
+多层线性变换叠加非线性激活，万能逼近定理可拟合任意连续函数；前向传播计算预测，反向传播梯度下降训练，搭配ReLU、Dropout。
+
+\subsubsection{2.5.3 CNN卷积神经网络}
+核心操作卷积、池化下采样；卷积层权重共享，大幅减少参数量，专门处理图像网格数据，分层提取局部视觉特征。
+
+\subsubsection{2.5.4 RNN/LSTM时序循环网络}
+时序递推公式：
+\[
+h_t = \sigma(W_h h_{t-1}+W_x x_t+b)
+\]
+基础RNN长序列梯度消失；LSTM依靠输入/遗忘/输出门捕获长期时序依赖，适配文本、时间序列。
+
+\subsection{2.6 入门强化学习算法}
+\subsubsection{2.6.1 Q-learning（无模型值迭代）}
+贝尔曼更新公式：
+\[
+Q(s,a) \leftarrow Q(s,a) + \alpha\big[R+\gamma \max_{a'}Q(s',a') - Q(s,a)\big]
+\]
+
+\subsubsection{2.6.2 Policy Gradient 策略梯度}
+不拟合价值函数，直接优化动作概率分布，最大化长期累积回报，适配连续动作空间任务。
+
+
+\end{document}
